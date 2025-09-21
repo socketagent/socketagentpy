@@ -6,7 +6,7 @@ from typing import Any, Dict, List
 from fastapi import FastAPI
 from fastapi.routing import APIRoute
 
-from .schemas import EndpointInfo, SocketDescriptor
+from .schemas import AuthInfo, EndpointInfo, SocketDescriptor
 
 
 def build_descriptor(
@@ -48,6 +48,11 @@ def build_descriptor(
         if hasattr(endpoint_func, "_socket_meta"):
             meta = endpoint_func._socket_meta
 
+            # Check for auth requirements
+            auth_info = getattr(endpoint_func, "_socket_auth", {})
+            auth_required = auth_info.get("required", False)
+            scopes = auth_info.get("scopes", [])
+
             # Add endpoint info
             for method in route.methods:
                 endpoints.append(
@@ -55,6 +60,8 @@ def build_descriptor(
                         path=route.path,
                         method=method,
                         summary=meta.get("summary", ""),
+                        auth_required=auth_required,
+                        scopes=scopes if scopes else None,
                     )
                 )
 
@@ -73,6 +80,23 @@ def build_descriptor(
             if meta.get("examples"):
                 all_examples.extend(meta["examples"])
 
+    # Check if any endpoints require auth
+    auth_required_endpoints = [ep for ep in endpoints if ep.auth_required]
+    has_auth = len(auth_required_endpoints) > 0
+
+    # Create auth info
+    auth = AuthInfo(type="none")
+    if has_auth:
+        # Check if auth middleware is configured
+        # This is a basic implementation - in a full system you'd get this from middleware config
+        auth = AuthInfo(
+            type="bearer",
+            description="JWT tokens from socketagent.id",
+            identity_service_url="http://localhost:8080",  # Default, should be configurable
+            audience="api",
+            optional=False
+        )
+
     # Create descriptor
     descriptor = SocketDescriptor(
         name=name,
@@ -80,6 +104,7 @@ def build_descriptor(
         base_url=base_url,
         endpoints=endpoints,
         schemas=schemas,
+        auth=auth,
         examples=all_examples,
     )
 

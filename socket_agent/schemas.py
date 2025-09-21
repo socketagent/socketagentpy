@@ -11,13 +11,27 @@ class EndpointInfo(BaseModel):
     path: str = Field(..., description="The URL path of the endpoint")
     method: str = Field(..., description="HTTP method (GET, POST, etc.)")
     summary: str = Field(..., description="Brief description of what the endpoint does")
+    auth_required: bool = Field(False, description="Whether this endpoint requires authentication")
+    scopes: Optional[List[str]] = Field(None, description="Required scopes for this endpoint")
+
+
+class TokenValidation(BaseModel):
+    """Token validation configuration."""
+
+    cache_ttl: int = Field(300, description="Token cache TTL in seconds")
+    validate_endpoint: str = Field("/v1/me", description="Endpoint for token validation")
 
 
 class AuthInfo(BaseModel):
     """Authentication configuration."""
 
-    type: str = Field("none", description="Authentication type (none, bearer, etc.)")
+    type: str = Field("none", description="Authentication type (none, bearer, api_key, etc.)")
     description: Optional[str] = Field(None, description="Additional auth details")
+    identity_service_url: Optional[str] = Field(None, description="Identity service URL")
+    audience: Optional[str] = Field(None, description="Token audience")
+    scopes: Optional[List[str]] = Field(None, description="Required scopes")
+    optional: bool = Field(False, description="Whether authentication is optional")
+    token_validation: Optional[TokenValidation] = Field(None, description="Token validation config")
 
 
 class UIHints(BaseModel):
