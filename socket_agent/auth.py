@@ -66,7 +66,8 @@ class SocketAgentAuthMiddleware:
     def __init__(
         self,
         app,
-        identity_service_url: str,
+        identity_service_url: str = "https://socketagent.io",
+        server_id: Optional[str] = None,
         audience: Optional[str] = None,
         cache_ttl: int = 300,
         timeout: float = 5.0
@@ -76,13 +77,15 @@ class SocketAgentAuthMiddleware:
 
         Args:
             app: FastAPI application
-            identity_service_url: URL of socketagent.id service
+            identity_service_url: URL of socketagent.id service (default: https://socketagent.io)
+            server_id: Your server ID from socketagent.io (for token discovery)
             audience: Token audience for validation
             cache_ttl: Token cache TTL in seconds
             timeout: HTTP timeout for validation requests
         """
         self.app = app
         self.identity_service_url = identity_service_url.rstrip("/")
+        self.server_id = server_id
         self.audience = audience
         self.timeout = timeout
         self.cache = TokenCache(ttl=cache_ttl)

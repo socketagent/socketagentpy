@@ -49,7 +49,7 @@ class TodoCreate(BaseModel):
         "required": ["text"]
     },
     response_schema={
-        "type": "object", 
+        "type": "object",
         "properties": {"id": {"type": "string"}}
     }
 )
@@ -63,6 +63,67 @@ SocketAgentMiddleware(
     description="Simple todo management"
 )
 ```
+
+### Authentication with socketagent.id
+
+For APIs requiring authentication, socket-agent integrates with [socketagent.id](https://socketagent.io) for JWT token validation:
+
+```python
+import os
+from fastapi import FastAPI, Depends
+from socket_agent import (
+    SocketAgentMiddleware,
+    SocketAgentAuthMiddleware,
+    socket,
+    auth_required,
+    get_current_user
+)
+
+app = FastAPI()
+
+# Get your server_id from https://socketagent.io/dashboard
+SERVER_ID = os.getenv("SOCKETAGENT_SERVER_ID")
+
+# Add authentication middleware
+SocketAgentAuthMiddleware(
+    app,
+    identity_service_url="https://socketagent.io",
+    server_id=SERVER_ID,
+    audience="your-api",
+    cache_ttl=300
+)
+
+# Add socket-agent middleware with auth config
+SocketAgentMiddleware(
+    app,
+    name="Authenticated API",
+    description="API with socketagent.id authentication",
+    auth_server_id=SERVER_ID,
+    auth_identity_service_url="https://socketagent.io"
+)
+
+@app.get("/protected")
+@socket.describe("Protected endpoint requiring authentication")
+@auth_required()
+async def protected_endpoint(user = Depends(get_current_user)):
+    return {"message": f"Hello {user.username}!"}
+
+@app.post("/admin")
+@socket.describe("Admin endpoint requiring specific scopes")
+@auth_required(scopes=["admin:write"])
+async def admin_endpoint(user = Depends(get_current_user)):
+    return {"message": "Admin access granted"}
+```
+
+**Environment Setup:**
+```bash
+export SOCKETAGENT_SERVER_ID="your_server_id_from_dashboard"
+python main.py
+```
+
+Your API will be discoverable at: `https://socketagent.io/auth/{SERVER_ID}`
+
+See [examples/authenticated_todo](examples/authenticated_todo) for a complete working example.
 
 ### Test the Descriptor
 

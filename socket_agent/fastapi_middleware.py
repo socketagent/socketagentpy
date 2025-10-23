@@ -19,6 +19,8 @@ class SocketAgentMiddleware:
         name: str,
         description: str,
         base_url: Optional[str] = None,
+        auth_server_id: Optional[str] = None,
+        auth_identity_service_url: Optional[str] = None,
     ):
         """
         Initialize the middleware.
@@ -28,12 +30,22 @@ class SocketAgentMiddleware:
             name: API name
             description: API description
             base_url: Base URL of the API (defaults to request URL)
+            auth_server_id: Server ID from socketagent.io (for token discovery)
+            auth_identity_service_url: Identity service URL (default: https://socketagent.io)
         """
         self.app = app
         self.name = name
         self.description = description
         self.base_url = base_url
+        self.auth_server_id = auth_server_id
+        self.auth_identity_service_url = auth_identity_service_url or "https://socketagent.io"
         self._descriptor: Optional[SocketDescriptor] = None
+
+        # Store auth config on app state for spec builder
+        if not hasattr(app.state, "socket_agent_auth"):
+            app.state.socket_agent_auth = {}
+        app.state.socket_agent_auth["server_id"] = auth_server_id
+        app.state.socket_agent_auth["identity_service_url"] = self.auth_identity_service_url
 
         # Add middleware to app
         app.add_api_route(

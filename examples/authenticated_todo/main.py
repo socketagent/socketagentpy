@@ -8,11 +8,12 @@ This example demonstrates:
 4. Integration with socketagent.id for token validation
 
 To run this example:
-1. Start socketagent.id service: `cd ../../socketagent.id && ./socketagent-id`
+1. Set environment variable: export SOCKETAGENT_SERVER_ID="your_server_id"
 2. Run this API: `python main.py`
-3. Test with the client example in socketagentlibpy/examples/
+3. Your API will be discoverable at https://socketagent.io/auth/your_server_id
 """
 
+import os
 from fastapi import FastAPI, Depends, HTTPException
 from pydantic import BaseModel
 
@@ -48,10 +49,15 @@ class User(BaseModel):
 # Create FastAPI app
 app = FastAPI(title="Authenticated Todo API")
 
+# Get server_id from environment variable
+# Get this from https://socketagent.io/dashboard.html after subscribing
+SERVER_ID = os.getenv("SOCKETAGENT_SERVER_ID")
+
 # Add authentication middleware first
 SocketAgentAuthMiddleware(
     app,
-    identity_service_url="http://localhost:8080",  # socketagent.id default
+    identity_service_url="https://socketagent.io",
+    server_id=SERVER_ID,
     audience="todo-api",
     cache_ttl=300
 )
@@ -60,7 +66,9 @@ SocketAgentAuthMiddleware(
 SocketAgentMiddleware(
     app,
     name="Authenticated Todo API",
-    description="A simple todo API with socketagent.id authentication"
+    description="A simple todo API with socketagent.id authentication",
+    auth_server_id=SERVER_ID,
+    auth_identity_service_url="https://socketagent.io"
 )
 
 # In-memory storage (replace with database in production)
@@ -204,7 +212,13 @@ if __name__ == "__main__":
     import uvicorn
 
     print("Starting authenticated todo API...")
-    print("Make sure socketagent.id is running on http://localhost:8080")
+    if SERVER_ID:
+        print(f"Server ID: {SERVER_ID}")
+        print(f"Discovery URL: https://socketagent.io/auth/{SERVER_ID}")
+    else:
+        print("⚠️  WARNING: SOCKETAGENT_SERVER_ID not set!")
+        print("   Get your server_id from: https://socketagent.io/dashboard.html")
+        print("   Set it with: export SOCKETAGENT_SERVER_ID='your_server_id'")
     print("API will be available at http://localhost:8001")
     print("Socket agent descriptor at http://localhost:8001/.well-known/socket-agent")
 

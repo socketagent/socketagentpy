@@ -28,6 +28,7 @@ class AuthInfo(BaseModel):
     type: str = Field("none", description="Authentication type (none, bearer, api_key, etc.)")
     description: Optional[str] = Field(None, description="Additional auth details")
     identity_service_url: Optional[str] = Field(None, description="Identity service URL")
+    server_id: Optional[str] = Field(None, description="Server ID for token discovery (socketagent.io)")
     audience: Optional[str] = Field(None, description="Token audience")
     scopes: Optional[List[str]] = Field(None, description="Required scopes")
     optional: bool = Field(False, description="Whether authentication is optional")

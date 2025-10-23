@@ -87,12 +87,16 @@ def build_descriptor(
     # Create auth info
     auth = AuthInfo(type="none")
     if has_auth:
-        # Check if auth middleware is configured
-        # This is a basic implementation - in a full system you'd get this from middleware config
+        # Get auth config from app state if available
+        auth_config = getattr(app.state, "socket_agent_auth", {})
+        server_id = auth_config.get("server_id")
+        identity_service_url = auth_config.get("identity_service_url", "https://socketagent.io")
+
         auth = AuthInfo(
             type="bearer",
             description="JWT tokens from socketagent.id",
-            identity_service_url="http://localhost:8080",  # Default, should be configurable
+            identity_service_url=identity_service_url,
+            server_id=server_id,
             audience="api",
             optional=False
         )
