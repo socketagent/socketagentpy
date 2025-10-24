@@ -121,7 +121,7 @@ class SocketAgentAuthMiddleware:
         Validate token with identity service.
 
         Args:
-            token: Bearer token to validate
+            token: Bearer token to validate (can be user access token or auth token)
 
         Returns:
             TokenValidationResult with validation status
@@ -133,19 +133,53 @@ class SocketAgentAuthMiddleware:
 
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:
-                response = await client.get(
-                    f"{self.identity_service_url}/v1/me",
-                    headers={"Authorization": f"Bearer {token}"}
-                )
+                # Try auth token validation first (for pay-per-use tokens)
+                if self.server_id:
+                    response = await client.post(
+                        f"{self.identity_service_url}/v1/auth-tokens/validate",
+                        json={"token": token, "server_id": self.server_id}
+                    )
 
-                if response.status_code == 200:
-                    user_data = response.json()
-                    user = User(**user_data)
-                    result = TokenValidationResult(valid=True, user=user)
-                elif response.status_code == 401:
-                    result = TokenValidationResult(valid=False, error="Invalid token")
+                    if response.status_code == 200:
+                        data = response.json()
+                        if data.get("valid"):
+                            # Auth token is valid (anonymous or with user)
+                            user = None
+                            if "user" in data:
+                                user = User(**data["user"])
+                            result = TokenValidationResult(valid=True, user=user)
+                        else:
+                            result = TokenValidationResult(valid=False, error="Invalid auth token")
+                    elif response.status_code == 401:
+                        # Try user access token validation as fallback
+                        response = await client.get(
+                            f"{self.identity_service_url}/v1/me",
+                            headers={"Authorization": f"Bearer {token}"}
+                        )
+
+                        if response.status_code == 200:
+                            user_data = response.json()
+                            user = User(**user_data)
+                            result = TokenValidationResult(valid=True, user=user)
+                        else:
+                            result = TokenValidationResult(valid=False, error="Invalid token")
+                    else:
+                        result = TokenValidationResult(valid=False, error=f"Validation failed: {response.status_code}")
                 else:
-                    result = TokenValidationResult(valid=False, error=f"Validation failed: {response.status_code}")
+                    # No server_id, only try user access token validation
+                    response = await client.get(
+                        f"{self.identity_service_url}/v1/me",
+                        headers={"Authorization": f"Bearer {token}"}
+                    )
+
+                    if response.status_code == 200:
+                        user_data = response.json()
+                        user = User(**user_data)
+                        result = TokenValidationResult(valid=True, user=user)
+                    elif response.status_code == 401:
+                        result = TokenValidationResult(valid=False, error="Invalid token")
+                    else:
+                        result = TokenValidationResult(valid=False, error=f"Validation failed: {response.status_code}")
 
         except Exception as e:
             result = TokenValidationResult(valid=False, error=f"Validation error: {str(e)}")
@@ -155,7 +189,7 @@ class SocketAgentAuthMiddleware:
         return result
 
 
-def get_current_user(request: Request) -> User:
+def get_current_user(request: Request) -> Optional[User]:
     """
     Dependency to get current authenticated user.
 
@@ -163,7 +197,7 @@ def get_current_user(request: Request) -> User:
         request: FastAPI request object
 
     Returns:
-        User object if authenticated
+        User object if token is associated with a user account, None for anonymous tokens
 
     Raises:
         HTTPException: If not authenticated or token invalid
@@ -175,10 +209,8 @@ def get_current_user(request: Request) -> User:
         error = request.state.auth.get("error", "Invalid token")
         raise HTTPException(status_code=401, detail=error)
 
-    if not hasattr(request.state, "user") or not request.state.user:
-        raise HTTPException(status_code=401, detail="User information not available")
-
-    return request.state.user
+    # Return user if available (may be None for anonymous auth tokens)
+    return getattr(request.state, "user", None)
 
 
 def auth_required(scopes: Optional[List[str]] = None):

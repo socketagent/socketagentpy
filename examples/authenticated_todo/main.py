@@ -100,9 +100,11 @@ async def health_check():
     }
 )
 @auth_required()
-async def list_todos(user: User = Depends(get_current_user)):
-    """List todos for authenticated user."""
-    user_todos = [todo for todo in todos_db.values() if todo["user_id"] == user.id]
+async def list_todos(user = Depends(get_current_user)):
+    """List todos for authenticated user (anonymous or with user account)."""
+    user_id = user.id if user else 0
+    # Filter by user_id (0 for anonymous tokens)
+    user_todos = [todo for todo in todos_db.values() if todo["user_id"] == user_id]
     return user_todos
 
 
@@ -129,7 +131,7 @@ async def list_todos(user: User = Depends(get_current_user)):
     }
 )
 @auth_required(scopes=["write:todos"])
-async def create_todo(todo_data: TodoCreate, user: User = Depends(get_current_user)):
+async def create_todo(todo_data: TodoCreate, user = Depends(get_current_user)):
     """Create a new todo item for authenticated user."""
     global next_todo_id
 
@@ -138,7 +140,7 @@ async def create_todo(todo_data: TodoCreate, user: User = Depends(get_current_us
         "text": todo_data.text,
         "priority": todo_data.priority,
         "completed": False,
-        "user_id": user.id
+        "user_id": user.id if user else 0  # Use 0 for anonymous tokens
     }
 
     todos_db[next_todo_id] = todo
@@ -173,14 +175,15 @@ async def create_todo(todo_data: TodoCreate, user: User = Depends(get_current_us
 async def update_todo(
     todo_id: int,
     todo_data: TodoCreate,
-    user: User = Depends(get_current_user)
+    user = Depends(get_current_user)
 ):
     """Update a todo item (only owner can update)."""
     if todo_id not in todos_db:
         raise HTTPException(status_code=404, detail="Todo not found")
 
     todo = todos_db[todo_id]
-    if todo["user_id"] != user.id:
+    user_id = user.id if user else 0
+    if todo["user_id"] != user_id:
         raise HTTPException(status_code=403, detail="Not authorized to update this todo")
 
     # Update fields
@@ -195,13 +198,14 @@ async def update_todo(
 @app.delete("/todos/{todo_id}")
 @socket.describe("Delete a todo item")
 @auth_required(scopes=["write:todos"])
-async def delete_todo(todo_id: int, user: User = Depends(get_current_user)):
+async def delete_todo(todo_id: int, user = Depends(get_current_user)):
     """Delete a todo item (only owner can delete)."""
     if todo_id not in todos_db:
         raise HTTPException(status_code=404, detail="Todo not found")
 
     todo = todos_db[todo_id]
-    if todo["user_id"] != user.id:
+    user_id = user.id if user else 0
+    if todo["user_id"] != user_id:
         raise HTTPException(status_code=403, detail="Not authorized to delete this todo")
 
     del todos_db[todo_id]
